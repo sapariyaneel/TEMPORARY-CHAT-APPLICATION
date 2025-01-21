@@ -16,7 +16,9 @@ const io = socketIo(server, {
       : 'http://localhost:3000',
     methods: ['GET', 'POST'],
     credentials: true
-  }
+  },
+  pingTimeout: 60000, // Increase ping timeout
+  pingInterval: 25000 // Increase ping interval
 });
 
 app.use(cors({
@@ -38,12 +40,23 @@ const cleanExpiredMessages = (roomId) => {
   if (room) {
     const currentTime = Date.now();
     const cycleStartTime = Math.floor((currentTime - room.createdAt) / MESSAGE_EXPIRY) * MESSAGE_EXPIRY + room.createdAt;
-    room.messages = room.messages.filter(msg => 
-      msg.timestamp >= cycleStartTime
-    );
+    room.messages = room.messages.filter(msg => msg.timestamp >= cycleStartTime);
     return cycleStartTime;
   }
   return null;
+};
+
+// Helper function to create a new room
+const createNewRoom = (roomId = uuidv4()) => {
+  const room = {
+    id: roomId,
+    createdAt: Date.now(),
+    users: new Set(),
+    messages: [],
+    lastActivity: Date.now()
+  };
+  activeRooms.set(roomId, room);
+  return room;
 };
 
 app.use(express.json());
@@ -51,28 +64,48 @@ app.use(express.json());
 // Create a new chat room
 app.post('/api/rooms', (req, res) => {
   const roomId = uuidv4();
-  const createdAt = Date.now();
-  activeRooms.set(roomId, {
-    createdAt,
-    users: new Set(),
-    messages: []
-  });
+  const room = createNewRoom(roomId);
   res.json({ roomId });
+});
+
+// Get room info
+app.get('/api/rooms/:roomId', (req, res) => {
+  const { roomId } = req.params;
+  const room = activeRooms.get(roomId);
+  
+  if (!room) {
+    // If room doesn't exist, create it
+    const newRoom = createNewRoom(roomId);
+    res.json({ 
+      exists: false,
+      room: {
+        id: newRoom.id,
+        createdAt: newRoom.createdAt,
+        userCount: 0
+      }
+    });
+  } else {
+    res.json({ 
+      exists: true,
+      room: {
+        id: room.id,
+        createdAt: room.createdAt,
+        userCount: room.users.size
+      }
+    });
+  }
 });
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // Add check username availability event
   socket.on('check_username', ({ roomId, username }) => {
-    const room = activeRooms.get(roomId);
+    let room = activeRooms.get(roomId);
+    
+    // If room doesn't exist, create it
     if (!room) {
-      socket.emit('username_checked', { 
-        isAvailable: false, 
-        error: 'Room not found' 
-      });
-      return;
+      room = createNewRoom(roomId);
     }
     
     const isAvailable = !room.users.has(username);
@@ -83,12 +116,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join_room', async ({ roomId, username }) => {
-    if (!activeRooms.has(roomId)) {
-      socket.emit('error', { message: 'Room not found' });
-      return;
+    let room = activeRooms.get(roomId);
+    
+    // If room doesn't exist, create it
+    if (!room) {
+      room = createNewRoom(roomId);
     }
-
-    const room = activeRooms.get(roomId);
     
     // Check if username is already taken
     if (room.users.has(username)) {
@@ -100,6 +133,7 @@ io.on('connection', (socket) => {
     socket.username = username;
     socket.roomId = roomId;
     room.users.add(username);
+    room.lastActivity = Date.now();
 
     // Clean up expired messages and get cycle start time
     const cycleStartTime = cleanExpiredMessages(roomId);
@@ -157,11 +191,14 @@ io.on('connection', (socket) => {
           users: Array.from(room.users)
         });
 
+        // Update last activity
+        room.lastActivity = Date.now();
+
         // If no users left, schedule room cleanup
         if (room.users.size === 0) {
           setTimeout(() => {
-            if (activeRooms.has(socket.roomId) && 
-                activeRooms.get(socket.roomId).users.size === 0) {
+            const room = activeRooms.get(socket.roomId);
+            if (room && room.users.size === 0 && Date.now() - room.lastActivity > MESSAGE_EXPIRY) {
               activeRooms.delete(socket.roomId);
             }
           }, MESSAGE_EXPIRY);
@@ -171,12 +208,20 @@ io.on('connection', (socket) => {
   });
 });
 
-// Periodic cleanup of expired messages (every 5 minutes)
+// Periodic cleanup of expired messages and inactive rooms (every 5 minutes)
 setInterval(() => {
-  for (const [roomId] of activeRooms) {
+  const currentTime = Date.now();
+  
+  for (const [roomId, room] of activeRooms.entries()) {
+    // Clean up messages
     const cycleStartTime = cleanExpiredMessages(roomId);
     if (cycleStartTime) {
       io.to(roomId).emit('messages_cleared', { cycleStartTime });
+    }
+    
+    // Remove inactive rooms with no users
+    if (room.users.size === 0 && currentTime - room.lastActivity > MESSAGE_EXPIRY) {
+      activeRooms.delete(roomId);
     }
   }
 }, 300000);

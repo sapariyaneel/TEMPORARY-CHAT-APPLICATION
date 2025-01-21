@@ -1,19 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
   Container,
   Typography,
-  Paper
+  Paper,
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import { API_URL } from '../config';
 
 function Home() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const createRoom = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       const response = await fetch(`${API_URL}/api/rooms`, {
         method: 'POST',
         headers: {
@@ -29,6 +36,9 @@ function Home() {
       navigate(`/room/${data.roomId}`);
     } catch (error) {
       console.error('Error creating room:', error);
+      setError('Failed to create room. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -63,9 +73,15 @@ function Home() {
           }}>
             Create a temporary chat room where messages expire after 10 minutes
           </Typography>
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
           <Button
             variant="contained"
             onClick={createRoom}
+            disabled={loading}
             sx={{
               py: 1.5,
               px: 4,
@@ -77,7 +93,11 @@ function Home() {
               }
             }}
           >
-            Create New Room
+            {loading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              'Create New Room'
+            )}
           </Button>
         </Paper>
       </Box>
