@@ -30,6 +30,7 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
+import { SOCKET_URL } from '../config';
 
 // Helper functions
 const formatTime = (seconds) => {
@@ -185,10 +186,6 @@ const getSendButtonStyles = (theme, timeLeft) => {
   };
 };
 
-const SOCKET_URL = import.meta.env.PROD 
-  ? 'https://temporary-chat-application-api.onrender.com'
-  : 'http://localhost:5000';
-
 function ChatRoom() {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -224,12 +221,13 @@ function ChatRoom() {
   };
 
   useEffect(() => {
-    const socket = io(SOCKET_URL, {
+    const newSocket = io(SOCKET_URL, {
       withCredentials: true,
-      transports: ['websocket']
+      transports: ['websocket'],
+      path: '/socket.io'
     });
-    setSocket(socket);
-    return () => socket.close();
+    setSocket(newSocket);
+    return () => newSocket.close();
   }, []);
 
   useEffect(() => {
