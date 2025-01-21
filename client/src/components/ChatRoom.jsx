@@ -186,7 +186,7 @@ const getSendButtonStyles = (theme, timeLeft) => {
 };
 
 const SOCKET_URL = import.meta.env.PROD 
-  ? 'https://temporary-chat-application-api.onrender.com' 
+  ? 'https://temporary-chat-application-api.onrender.com'
   : 'http://localhost:5000';
 
 function ChatRoom() {
@@ -225,7 +225,8 @@ function ChatRoom() {
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
-      withCredentials: true
+      withCredentials: true,
+      transports: ['websocket']
     });
     setSocket(socket);
     return () => socket.close();

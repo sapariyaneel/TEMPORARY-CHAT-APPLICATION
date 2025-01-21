@@ -12,7 +12,7 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
-      ? 'https://temporary-chat-application.onrender.com'
+      ? ['https://temporary-chat-application.onrender.com', 'https://temporary-chat-application-api.onrender.com']
       : 'http://localhost:3000',
     methods: ['GET', 'POST'],
     credentials: true
@@ -21,7 +21,7 @@ const io = socketIo(server, {
 
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? 'https://temporary-chat-application.onrender.com'
+    ? ['https://temporary-chat-application.onrender.com', 'https://temporary-chat-application-api.onrender.com']
     : 'http://localhost:3000',
   credentials: true
 }));
