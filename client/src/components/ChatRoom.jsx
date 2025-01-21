@@ -26,11 +26,12 @@ import {
   Zoom,
   Fade,
   Grow,
+  CircularProgress,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
-import { SOCKET_URL } from '../config';
+import { API_URL, SOCKET_URL } from '../config';
 
 // Helper functions
 const formatTime = (seconds) => {
@@ -190,6 +191,8 @@ function ChatRoom() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const [socket, setSocket] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
   const [username, setUsername] = useState('');
@@ -220,15 +223,45 @@ function ChatRoom() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Check if room exists before connecting
   useEffect(() => {
-    const newSocket = io(SOCKET_URL, {
-      withCredentials: true,
-      transports: ['websocket'],
-      path: '/socket.io'
-    });
-    setSocket(newSocket);
-    return () => newSocket.close();
-  }, []);
+    const validateRoom = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_URL}/api/rooms/${roomId}`);
+        if (!response.ok) {
+          throw new Error('Failed to validate room');
+        }
+        
+        const data = await response.json();
+        if (!data.exists && !data.room) {
+          throw new Error('Room not found');
+        }
+
+        // Initialize socket connection after room validation
+        const newSocket = io(SOCKET_URL, {
+          withCredentials: true,
+          transports: ['websocket'],
+          path: '/socket.io'
+        });
+
+        setSocket(newSocket);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error validating room:', err);
+        setError('Room not found or no longer available');
+        setLoading(false);
+      }
+    };
+
+    validateRoom();
+
+    return () => {
+      if (socket) {
+        socket.close();
+      }
+    };
+  }, [roomId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -392,6 +425,66 @@ function ChatRoom() {
   const toggleEmojiPicker = () => {
     setShowEmojiPicker(prev => !prev);
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <Container maxWidth="sm">
+        <Box sx={{ 
+          minHeight: '100vh', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center' 
+        }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <Container maxWidth="sm">
+        <Box sx={{ 
+          minHeight: '100vh', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center' 
+        }}>
+          <Paper elevation={0} sx={{
+            p: 4,
+            textAlign: 'center',
+            background: 'rgba(10, 25, 41, 0.9)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: 4,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            width: '100%'
+          }}>
+            <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+              {error}
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={() => navigate('/')}
+              sx={{
+                py: 1.5,
+                px: 4,
+                borderRadius: 2,
+                background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #21CBF3 30%, #2196F3 90%)',
+                }
+              }}
+            >
+              Return Home
+            </Button>
+          </Paper>
+        </Box>
+      </Container>
+    );
+  }
 
   if (!isJoined) {
     return (
