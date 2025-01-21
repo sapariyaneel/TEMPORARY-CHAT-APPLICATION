@@ -1,18 +1,30 @@
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const socketIo = require('socket.io');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
+
+// Updated CORS configuration for production
+const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"]
+    origin: process.env.NODE_ENV === 'production' 
+      ? 'https://temporary-chat-application.onrender.com'
+      : 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
+
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? 'https://temporary-chat-application.onrender.com'
+    : 'http://localhost:3000',
+  credentials: true
+}));
 
 // Message expiration time in milliseconds (10 minutes)
 const MESSAGE_EXPIRY = 600000;
@@ -34,7 +46,6 @@ const cleanExpiredMessages = (roomId) => {
   return null;
 };
 
-app.use(cors());
 app.use(express.json());
 
 // Create a new chat room
@@ -169,6 +180,11 @@ setInterval(() => {
     }
   }
 }, 300000);
+
+// Add a basic route for health check
+app.get('/', (req, res) => {
+  res.send('Server is running');
+});
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
