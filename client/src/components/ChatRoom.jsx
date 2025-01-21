@@ -31,7 +31,7 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
-import { API_URL, SOCKET_URL } from '../config';
+import { API_URL, SOCKET_URL, SOCKET_OPTIONS } from '../config';
 
 // Helper functions
 const formatTime = (seconds) => {
@@ -228,21 +228,25 @@ function ChatRoom() {
     const validateRoom = async () => {
       try {
         setLoading(true);
+        setError(null);
+        
         const response = await fetch(`${API_URL}/api/rooms/${roomId}`);
         if (!response.ok) {
           throw new Error('Failed to validate room');
         }
         
         const data = await response.json();
-        if (!data.exists && !data.room) {
-          throw new Error('Room not found');
-        }
-
-        // Initialize socket connection after room validation
-        const newSocket = io(SOCKET_URL, {
-          withCredentials: true,
-          transports: ['websocket'],
-          path: '/socket.io'
+        
+        // Initialize socket connection
+        const newSocket = io(SOCKET_URL, SOCKET_OPTIONS);
+        
+        newSocket.on('connect', () => {
+          console.log('Socket connected:', newSocket.id);
+        });
+        
+        newSocket.on('connect_error', (error) => {
+          console.error('Socket connection error:', error);
+          setError('Failed to connect to chat server');
         });
 
         setSocket(newSocket);
@@ -258,7 +262,7 @@ function ChatRoom() {
 
     return () => {
       if (socket) {
-        socket.close();
+        socket.disconnect();
       }
     };
   }, [roomId]);

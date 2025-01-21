@@ -8,25 +8,30 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? ['https://temporary-chat-application.onrender.com']
+  : ['http://localhost:3000'];
+
 // Updated CORS configuration for production
 const io = socketIo(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? ['https://temporary-chat-application.onrender.com', 'https://temporary-chat-application-api.onrender.com']
-      : 'http://localhost:3000',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true
   },
-  pingTimeout: 60000, // Increase ping timeout
-  pingInterval: 25000 // Increase ping interval
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling']
 });
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://temporary-chat-application.onrender.com', 'https://temporary-chat-application-api.onrender.com']
-    : 'http://localhost:3000',
-  credentials: true
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST']
 }));
+
+// Enable pre-flight requests for all routes
+app.options('*', cors());
 
 // Message expiration time in milliseconds (10 minutes)
 const MESSAGE_EXPIRY = 600000;
