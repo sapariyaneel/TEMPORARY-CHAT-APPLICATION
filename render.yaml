@@ -14,7 +14,12 @@ services:
     name: temporary-chat-application
     buildCommand: cd client && npm install && npm run build
     publishDir: client/dist
+    headers:
+      - source: /**
+        headers:
+          - key: Cache-Control
+            value: no-store
     routes:
       - type: rewrite
-        source: /*
+        source: /**
         destination: /index.html 
