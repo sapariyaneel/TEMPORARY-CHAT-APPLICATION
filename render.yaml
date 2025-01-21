@@ -10,11 +10,10 @@ services:
       - key: PORT
         value: 5000
 
-  - type: web
+  - type: static
     name: temporary-chat-application
-    env: static
     buildCommand: cd client && npm install && npm run build
-    staticPublishPath: ./client/dist
+    publishDir: client/dist
     routes:
       - type: rewrite
         source: /*
